@@ -1,0 +1,10 @@
+[package]
+name = "json"
+version = "0.1.0"
+authors = ["Frank Murphy <fmurphy@arbor.net>"]
+
+[dependencies.rustc-serialize]
+git = "file:///data/rust/rustc-serialize"
+
+[dependencies.libc]
+git = "file:///data/rust/libc"
