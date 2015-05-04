@@ -8,6 +8,3 @@ git = "file:///data/rust/rustc-serialize"
 
 [dependencies.libc]
 git = "file:///data/rust/libc"
-
-[dependencies.pnet]
-git = "https://github.com/libpnet/libpnet.git"

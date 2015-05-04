@@ -1,0 +1,6 @@
+* bundled version of curl or w/e doesn't properly SSL
+* no ntohs? really?
+* missing / moving things
+* error handling, erm?
+* error handling, wtf (println! while debugging via output generates signal 4)
+* llvm toolchain instead of gnu (no lldb, no libs for codegen)

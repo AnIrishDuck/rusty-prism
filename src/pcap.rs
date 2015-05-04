@@ -1,6 +1,8 @@
-use std::ptr;
-use std::mem;
 use libc::c_int;
+use std::cmp;
+use std::mem;
+use std::ptr;
+use std::io::{Read, Result};
 
 #[repr(C)]
 pub struct timeval {

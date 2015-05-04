@@ -1,8 +1,12 @@
 extern crate libc;
 extern crate rustc_serialize;
 
+mod util;
 mod pcap;
+mod ether;
+mod ip;
 
+use std::io::Cursor;
 use std::ptr;
 use rustc_serialize::json;
 
@@ -18,8 +22,12 @@ pub struct TestStruct  {
 fn main() {
     let pcap = pcap::PcapFile::open("/data/many-flow.pcap");
 
-    for pkt in pcap {
-        println!("# {}.{}", pkt.header.ts.tv_sec, pkt.header.ts.tv_usec);
+    for pkt in pcap.take(16) {
+        let inner = ether::read_inner_packet(&pkt.bytes);
+        let ip = ip::V4Packet::new(inner);
+        println!("# {}.{} 0x{:X} -> 0x{:X}",
+                 pkt.header.ts.tv_sec, pkt.header.ts.tv_usec,
+                 ip.src(), ip.dst());
     }
 
     let object = TestStruct {
