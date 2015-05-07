@@ -26,13 +26,21 @@ fn hash_u32(i: u32) -> u64 {
 }
 
 fn main() {
-    let pcap = pcap::PcapFile::open("/data/many-flow.pcap");
+    let input = pcap::read("/data/many-flow.pcap");
 
-    for pkt in pcap.take(16) {
+    let out = vec![
+        pcap::write("1.pcap", input.datalink(), input.snaplen()),
+        pcap::write("2.pcap", input.datalink(), input.snaplen())
+    ];
+
+    for pkt in input.take(16) {
         let inner = ether::read_inner_packet(&pkt.bytes);
         let ip = ip::V4Packet::new(inner);
 
         let hash = hash_u32(ip.src()) ^ hash_u32(ip.dst());
+        let ix: usize = (hash % 2) as usize;
+
+        out[ix].write(&pkt);
 
         println!("# {}.{} 0x{:X} (0x{:X} -> 0x{:X})",
                  pkt.header.ts.tv_sec, pkt.header.ts.tv_usec,

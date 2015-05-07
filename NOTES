@@ -4,3 +4,8 @@
 * error handling, erm?
 * error handling, wtf (println! while debugging via output generates signal 4)
 * llvm toolchain instead of gnu (no lldb, no libs for codegen)
+
+* combined pointers?
+/data/many-flow.pcap1.pcap: No such file or directory
+let input = pcap::read("/data/many-flow.pcap");
+let output = pcap::write("1.pcap", input.datalink(), input.snaplen());

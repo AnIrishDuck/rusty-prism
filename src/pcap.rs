@@ -2,6 +2,8 @@ use libc::c_int;
 use std::cmp;
 use std::mem;
 use std::ptr;
+use std::str;
+use std::ffi::CString;
 use std::io::{Read, Result};
 
 #[repr(C)]
@@ -19,10 +21,22 @@ pub struct PacketHeader {
 
 pub type PcapCallback = extern fn(*mut u8, *const PacketHeader, *const u8);
 
+// Used for  types that are intentially opaque.
+// stackoverflow.com/q/26699631/#comment41993111_26699631
+type pcap_internal_t = *const u8;
+
 #[link(name = "pcap")]
 extern {
-    fn pcap_open_offline(path: *const u8, err: *mut u8) -> *const u8;
-    fn pcap_loop(pcap: *const u8, count: c_int,
+    fn pcap_datalink(p: pcap_internal_t) -> c_int;
+    fn pcap_snapshot(p: pcap_internal_t) -> c_int;
+    fn pcap_open_dead(linktype: c_int, snaplen: c_int) -> pcap_internal_t;
+    fn pcap_dump_open(p: pcap_internal_t, path: *const i8) -> pcap_internal_t;
+    fn pcap_dump(p: pcap_internal_t,
+                 hdr: *const PacketHeader,
+                 pkt: *const u8) -> pcap_internal_t;
+
+    fn pcap_open_offline(path: *const i8, err: *mut u8) -> pcap_internal_t;
+    fn pcap_loop(pcap: pcap_internal_t, count: c_int,
                  cb: PcapCallback,
                  udata: *mut u8) -> c_int;
 }
@@ -48,22 +62,52 @@ pub struct Packet {
     pub bytes: [u8; 1500]
 }
 
-pub struct PcapFile {
+pub struct PcapFileReader {
     pcap: *const u8,
 }
 
-impl PcapFile {
-    pub fn open(path: &str) -> PcapFile {
-        unsafe {
-            let mut err: [u8; 256] = [0; 256];
-            PcapFile {
-                pcap: pcap_open_offline(path.as_ptr(), err.as_mut_ptr()),
+pub struct PcapFileWriter {
+    pcap: *const u8,
+}
+
+pub fn read(path: &str) -> PcapFileReader {
+    unsafe {
+        let mut err: [u8; 256] = [0; 256];
+        let c_path = CString::new(path).unwrap();
+        let pcap = pcap_open_offline(c_path.as_ptr(), err.as_mut_ptr());
+        if !pcap.is_null() {
+            PcapFileReader {
+                pcap: pcap,
             }
+        }
+        else {
+            panic!("error in pcap_open_offline: {}", str::from_utf8(&err).unwrap());
         }
     }
 }
 
-impl Iterator for PcapFile {
+pub fn write(path: &str, datalink: i32, snaplen: i32) -> PcapFileWriter {
+    unsafe {
+        let c_path = CString::new(path).unwrap();
+
+        let inst = pcap_open_dead(datalink, snaplen);
+        let pcap = pcap_dump_open(inst, c_path.as_ptr());
+
+        if !pcap.is_null() {
+            PcapFileWriter { pcap: pcap }
+        }
+        else {
+            panic!("error in pcap_dump_open");
+        }
+    }
+}
+
+impl PcapFileReader {
+    pub fn snaplen(&self) -> i32 { unsafe { pcap_snapshot(self.pcap) } }
+    pub fn datalink(&self) -> i32 { unsafe { pcap_datalink(self.pcap) } }
+}
+
+impl Iterator for PcapFileReader {
     type Item = Packet;
 
     fn next(&mut self) -> Option<Packet> {
@@ -86,6 +130,14 @@ impl Iterator for PcapFile {
             let count = pcap_loop(self.pcap, 1, cb, ptr);
             let pkt = data.packet;
             if data.filled { Some(pkt) } else { None }
+        }
+    }
+}
+
+impl PcapFileWriter {
+    pub fn write(&self, pkt: &Packet) {
+        unsafe {
+            pcap_dump(self.pcap, &pkt.header, pkt.bytes.as_ptr());
         }
     }
 }
