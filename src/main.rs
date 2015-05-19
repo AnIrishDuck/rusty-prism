@@ -96,8 +96,10 @@ fn main() {
         writers[ix].queue.push(pkt);
     }
 
-    let mut ended = fin.write().unwrap();
-    *ended = true;
+    {
+        let mut ended = fin.write().unwrap();
+        *ended = true;
+    }
 
     for writer in writers {
         writer.thread.join();
