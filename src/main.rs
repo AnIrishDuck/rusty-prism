@@ -50,13 +50,13 @@ fn main() {
     let input = pcap::read(to_str(&args.next().unwrap()));
 
     let fin = Arc::new(RwLock::new(false));
-    let readFin = fin.clone();
 
     let writers: Vec<_> = args.map(|path| {
         let (producer, consumer) = bounded_spsc_queue::make::<Packet>(QUEUE_SIZE);
 
         let datalink = input.datalink();
         let snaplen = input.snaplen();
+        let readFin = fin.clone();
 
         let thread = thread::spawn(move || {
             let f = pcap::write(to_str(&path), datalink, snaplen);
