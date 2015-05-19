@@ -49,7 +49,8 @@ fn main() {
     args.next(); // shift off program name
     let input = pcap::read(to_str(&args.next().unwrap()));
 
-    let fin = RwLock::new(false);
+    let fin = Arc::new(RwLock::new(false));
+    let readFin = fin.clone();
 
     let writers: Vec<_> = args.map(|path| {
         let (producer, consumer) = bounded_spsc_queue::make::<Packet>(QUEUE_SIZE);
@@ -67,7 +68,7 @@ fn main() {
                 }
             };
 
-            while !*fin.read().unwrap() {
+            while !*readFin.read().unwrap() {
                 if !try_write() {
                     thread::sleep_ms(1);
                 }
