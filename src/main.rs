@@ -1,14 +1,22 @@
 extern crate libc;
 extern crate rustc_serialize;
+extern crate bounded_spsc_queue;
 
+use std::env;
+use std::str;
 use std::hash::{Hash, Hasher, SipHasher};
+use std::thread;
+use std::sync::{Arc, RwLock};
 
+use bounded_spsc_queue::{Producer,Consumer};
 use rustc_serialize::json;
 
 mod util;
 mod pcap;
 mod ether;
 mod ip;
+
+use pcap::Packet;
 
 // Automatically generate `RustcDecodable` and `RustcEncodable` trait
 // implementations
@@ -25,26 +33,77 @@ fn hash_u32(i: u32) -> u64 {
     return hasher.finish();
 }
 
+fn to_str<'a>(s: &'a String) -> &'a str {
+    str::from_utf8(s.as_bytes()).unwrap()
+}
+
+const QUEUE_SIZE : usize = 256 * 1024;
+
+struct Writer {
+    thread: thread::JoinHandle<()>,
+    queue: Producer<Packet>
+}
+
 fn main() {
-    let input = pcap::read("/data/many-flow.pcap");
+    let mut args = env::args();
+    args.next(); // shift off program name
+    let input = pcap::read(to_str(&args.next().unwrap()));
 
-    let out = vec![
-        pcap::write("1.pcap", input.datalink(), input.snaplen()),
-        pcap::write("2.pcap", input.datalink(), input.snaplen())
-    ];
+    let fin = Arc::new(RwLock::new(false));
 
-    for pkt in input.take(16) {
-        let inner = ether::read_inner_packet(&pkt.bytes);
-        let ip = ip::V4Packet::new(inner);
+    let writers: Vec<_> = args.map(|path| {
+        let (producer, consumer) = bounded_spsc_queue::make::<Packet>(QUEUE_SIZE);
+        let readFin = fin.clone();
 
-        let hash = hash_u32(ip.src()) ^ hash_u32(ip.dst());
-        let ix: usize = (hash % 2) as usize;
+        let datalink = input.datalink();
+        let snaplen = input.snaplen();
 
-        out[ix].write(&pkt);
+        let thread = thread::spawn(move || {
+            let f = pcap::write(to_str(&path),
+                                datalink, snaplen);
 
-        println!("# {}.{} 0x{:X} (0x{:X} -> 0x{:X})",
-                 pkt.header.ts.tv_sec, pkt.header.ts.tv_usec,
-                 hash, ip.src(), ip.dst());
+            while(!*readFin.read().unwrap()) {
+                match consumer.try_pop() {
+                    Some(pkt) => f.write(&pkt),
+                    None      => thread::sleep_ms(1)
+                }
+            }
+
+            // flush backlog
+            let mut done = false;
+            while !done {
+                done = match consumer.try_pop() {
+                    Some(pkt) => { f.write(&pkt); false },
+                    None      => true
+                }
+            }
+        });
+
+        Writer { thread: thread, queue: producer }
+    }).collect();
+
+    let mut count = 0;
+    for pkt in input {
+        let hash = {
+            let inner = ether::read_inner_packet(&pkt.bytes);
+            let ip = ip::V4Packet::new(inner);
+
+            hash_u32(ip.src()) ^ hash_u32(ip.dst())
+        };
+
+        let ix: usize = (hash % (writers.len() as u64)) as usize;
+
+        count += 1;
+        writers[ix].queue.push(pkt);
+    }
+
+    {
+        let mut ended = fin.write().unwrap();
+        *ended = true;
+    }
+
+    for writer in writers {
+        writer.thread.join();
     }
 
     let object = TestStruct {

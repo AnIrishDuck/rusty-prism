@@ -9,3 +9,6 @@
 /data/many-flow.pcap1.pcap: No such file or directory
 let input = pcap::read("/data/many-flow.pcap");
 let output = pcap::write("1.pcap", input.datalink(), input.snaplen());
+
+* two string types
+* scoping and other such problems
