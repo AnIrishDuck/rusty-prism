@@ -59,24 +59,23 @@ fn main() {
         let snaplen = input.snaplen();
 
         let thread = thread::spawn(move || {
-            let f = pcap::write(to_str(&path),
-                                datalink, snaplen);
+            let f = pcap::write(to_str(&path), datalink, snaplen);
 
-            while(!*readFin.read().unwrap()) {
+            let try_write = || {
                 match consumer.try_pop() {
-                    Some(pkt) => f.write(&pkt),
-                    None      => thread::sleep_ms(1)
+                    Some(pkt) => { f.write(&pkt); true }
+                    None      => false
+                }
+            };
+
+            while !*readFin.read().unwrap() {
+                if !try_write() {
+                    thread::sleep_ms(1);
                 }
             }
 
             // flush backlog
-            let mut done = false;
-            while !done {
-                done = match consumer.try_pop() {
-                    Some(pkt) => { f.write(&pkt); false },
-                    None      => true
-                }
-            }
+            while try_write() { }
         });
 
         Writer { thread: thread, queue: producer }
