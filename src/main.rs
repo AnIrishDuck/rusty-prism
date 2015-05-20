@@ -6,10 +6,13 @@ use std::env;
 use std::str;
 use std::hash::{Hash, Hasher, SipHasher};
 use std::thread;
+use std::collections::BTreeMap;
+use std::iter::FromIterator;
 use std::sync::{Arc, RwLock};
 
 use bounded_spsc_queue::{Producer,Consumer};
 use rustc_serialize::json;
+use rustc_serialize::json::{Json, ToJson};
 
 mod util;
 mod pcap;
@@ -17,15 +20,6 @@ mod ether;
 mod ip;
 
 use pcap::Packet;
-
-// Automatically generate `RustcDecodable` and `RustcEncodable` trait
-// implementations
-#[derive(RustcDecodable, RustcEncodable)]
-pub struct TestStruct  {
-    data_int: u8,
-    data_str: String,
-    data_vector: Vec<u8>,
-}
 
 fn hash_u32(i: u32) -> u64 {
     let mut hasher = SipHasher::new();
@@ -37,9 +31,18 @@ fn to_str<'a>(s: &'a String) -> &'a str {
     str::from_utf8(s.as_bytes()).unwrap()
 }
 
+#[derive(RustcDecodable, RustcEncodable, Clone, Copy)]
+struct Stats {
+    capacity: usize,
+    rx_frames: u64
+}
+
+type Status = Vec<(String, Stats)>;
+
 const QUEUE_SIZE : usize = 256 * 1024;
 
 struct Writer {
+    path: String,
     thread: thread::JoinHandle<()>,
     queue: Producer<Packet>
 }
@@ -56,7 +59,9 @@ fn main() {
 
         let datalink = input.datalink();
         let snaplen = input.snaplen();
+
         let readFin = fin.clone();
+        let writerPath = path.clone();
 
         let thread = thread::spawn(move || {
             let f = pcap::write(to_str(&path), datalink, snaplen);
@@ -78,8 +83,18 @@ fn main() {
             while try_write() { }
         });
 
-        Writer { thread: thread, queue: producer }
+        Writer { thread: thread, queue: producer, path: writerPath }
     }).collect();
+
+    let (tx_status, rx_status) = bounded_spsc_queue::make::<Status>(1);
+    let mut status = BTreeMap::from_iter(writers.iter().map(|w| {
+        (w.path.clone(), Stats { capacity: w.queue.free_space(), rx_frames: 0 })
+    }));
+
+    let status_fin = fin.clone();
+    let status_thread = thread::spawn(move || {
+        status_main(rx_status, status_fin);
+    });
 
     let mut count = 0;
     for pkt in input {
@@ -91,9 +106,24 @@ fn main() {
         };
 
         let ix: usize = (hash % (writers.len() as u64)) as usize;
+        let ref writer = writers[ix];
 
-        count += 1;
-        writers[ix].queue.push(pkt);
+        writer.queue.push(pkt);
+
+        {
+            let mut stats = status.get_mut(&writer.path).unwrap();
+            stats.rx_frames += 1;
+            count += 1;
+        }
+
+        if count & 0xFF == 0 {
+            let i = status.iter().map(|(path, stats)| {
+                (path.clone(), *stats)
+            });
+            let current_status: Vec<(String, Stats)> = i.collect();
+
+            tx_status.push(current_status);
+        }
     }
 
     {
@@ -104,15 +134,28 @@ fn main() {
     for writer in writers {
         writer.thread.join();
     }
+    status_thread.join();
+}
 
-    let object = TestStruct {
-        data_int: 1,
-        data_str: "homura".to_string(),
-        data_vector: vec![2,3,4,5],
+fn status_main(rx: Consumer<Status>, fin: Arc<RwLock<bool>>) {
+    let write_status = |status: Status| {
+        let iter = status.iter().map(|pair| {
+            let (ref path, ref stats) = *pair;
+            (path.clone(), json::encode(&stats).unwrap())
+        });
+        let status: BTreeMap<String, String> = BTreeMap::from_iter(iter);
+
+        println!("status {}", json::encode(&status).unwrap());
     };
 
-    // Serialize using `json::encode`
-    let encoded = json::encode(&object).unwrap();
-
-    println!("encoded {}", encoded);
+    while !*fin.read().unwrap() {
+        match rx.try_pop() {
+            Some(status) => {
+                write_status(status);
+            },
+            None => {
+                thread::sleep_ms(1000);
+            }
+        }
+    }
 }
