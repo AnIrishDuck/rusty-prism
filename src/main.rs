@@ -31,7 +31,7 @@ fn to_str<'a>(s: &'a String) -> &'a str {
     str::from_utf8(s.as_bytes()).unwrap()
 }
 
-#[derive(RustcDecodable, RustcEncodable, Clone, Copy)]
+#[derive(RustcDecodable, RustcEncodable, Clone, Copy, PartialEq)]
 struct Stats {
     capacity: usize,
     rx_frames: u64
@@ -141,9 +141,9 @@ fn status_main(rx: Consumer<Status>, fin: Arc<RwLock<bool>>) {
     let write_status = |status: Status| {
         let iter = status.iter().map(|pair| {
             let (ref path, ref stats) = *pair;
-            (path.clone(), json::encode(&stats).unwrap())
+            (path.clone(), *stats)
         });
-        let status: BTreeMap<String, String> = BTreeMap::from_iter(iter);
+        let status: BTreeMap<String, Stats> = BTreeMap::from_iter(iter);
 
         println!("status {}", json::encode(&status).unwrap());
     };
