@@ -39,11 +39,11 @@ struct Stats {
 
 impl ToJson for Stats {
     fn to_json(&self) -> Json {
-        let items = vec![("capacity", self.capacity.load(Ordering::Relaxed)),
-                         ("rx_frames", self.rx_frames.load(Ordering::Relaxed))];
+        let items = vec![("capacity", &self.capacity),
+                         ("rx_frames", &self.rx_frames)];
 
         Json::Object(BTreeMap::from_iter(items.iter().map(|&(s, aus)| {
-            (s.to_string(), aus.to_json())
+            (s.to_string(), aus.load(Ordering::Relaxed).to_json())
         })))
     }
 }
@@ -53,7 +53,6 @@ type Status = Vec<Stats>;
 const QUEUE_SIZE : usize = 256 * 1024;
 
 struct Writer {
-    path: String,
     thread: thread::JoinHandle<()>,
     queue: Producer<Packet>
 }
@@ -65,36 +64,10 @@ fn main() {
 
     let fin = Arc::new(RwLock::new(false));
 
-    let writers: Vec<_> = args.map(|path| {
-        let (producer, consumer) = bounded_spsc_queue::make::<Packet>(QUEUE_SIZE);
+    let paths: Vec<_> = args.collect();
 
-        let datalink = input.datalink();
-        let snaplen = input.snaplen();
-
-        let readFin = fin.clone();
-        let writerPath = path.clone();
-
-        let thread = thread::spawn(move || {
-            let f = pcap::write(to_str(&path), datalink, snaplen);
-
-            let try_write = || {
-                match consumer.try_pop() {
-                    Some(pkt) => { f.write(&pkt); true }
-                    None      => false
-                }
-            };
-
-            while !*readFin.read().unwrap() {
-                if !try_write() {
-                    thread::sleep_ms(1);
-                }
-            }
-
-            // flush backlog
-            while try_write() { }
-        });
-
-        Writer { thread: thread, queue: producer, path: writerPath }
+    let writers: Vec<_> = paths.iter().map(|path| {
+        create_writer(path.clone(), fin.clone(), &input)
     }).collect();
 
     let mut local_status: Arc<Vec<_>> = Arc::new(writers.iter().map(|w| {
@@ -102,13 +75,7 @@ fn main() {
                 rx_frames: AtomicUsize::new(0) }
     }).collect());
 
-    let names: Vec<_> = writers.iter().map(|w| { w.path.clone() }).collect();
-
-    let status_fin = fin.clone();
-    let remote_status = local_status.clone();
-    let status_thread = thread::spawn(move || {
-        status_main(remote_status, names, status_fin);
-    });
+    let status = create_status(local_status.clone(), paths, fin.clone());
 
     let mut count = 0;
     for pkt in input {
@@ -137,23 +104,56 @@ fn main() {
     for writer in writers {
         writer.thread.join();
     }
-    status_thread.join();
+    status.join();
 }
 
-fn status_main(status: Arc<Status>, names: Vec<String>, fin: Arc<RwLock<bool>>) {
-    let write_status = || {
-        let iter = names.iter().zip(status.iter()).map(|pair| {
-            let (ref path, stats) = pair;
-            ((*path).clone(), stats.to_json())
-        });
-        let status: BTreeMap<String, Json> = BTreeMap::from_iter(iter);
+fn create_status(status: Arc<Status>, names: Vec<String>,
+                 fin: Arc<RwLock<bool>>) -> thread::JoinHandle<()> {
+    thread::spawn(move || {
+        let write_status = || {
+            let iter = names.iter().zip(status.iter()).map(|pair| {
+                let (ref path, stats) = pair;
+                ((*path).clone(), stats.to_json())
+            });
+            let status: BTreeMap<String, Json> = BTreeMap::from_iter(iter);
 
-        println!("status {}", json::encode(&status).unwrap());
-    };
+            println!("status {}", json::encode(&status).unwrap());
+        };
 
-    while !*fin.read().unwrap() {
+        while !*fin.read().unwrap() {
+            write_status();
+            thread::sleep_ms(100);
+        }
         write_status();
-        thread::sleep_ms(100);
-    }
-    write_status();
+    })
+}
+
+fn create_writer(path: String, fin: Arc<RwLock<bool>>,
+                 input: &pcap::PcapFileReader) -> Writer {
+    let (producer, consumer) = bounded_spsc_queue::make::<Packet>(QUEUE_SIZE);
+
+    let datalink = input.datalink();
+    let snaplen = input.snaplen();
+
+    let thread = thread::spawn(move || {
+        let f = pcap::write(to_str(&path), datalink, snaplen);
+
+        let try_write = || {
+            match consumer.try_pop() {
+                Some(pkt) => { f.write(&pkt); true }
+                None      => false
+            }
+        };
+
+        while !*fin.read().unwrap() {
+            if !try_write() {
+                thread::sleep_ms(1);
+            }
+        }
+
+        // flush backlog
+        while try_write() { }
+    });
+
+    Writer { thread: thread, queue: producer }
 }
