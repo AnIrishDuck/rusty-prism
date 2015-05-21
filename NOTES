@@ -12,3 +12,5 @@ let output = pcap::write("1.pcap", input.datalink(), input.snaplen());
 
 * two string types
 * scoping and other such problems
+* no concurrent map in stdlib
+* no impl of Serializable, PartialEq for AtomicUsize

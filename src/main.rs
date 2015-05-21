@@ -9,6 +9,7 @@ use std::thread;
 use std::collections::BTreeMap;
 use std::iter::FromIterator;
 use std::sync::{Arc, RwLock};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use bounded_spsc_queue::{Producer,Consumer};
 use rustc_serialize::json;
@@ -31,13 +32,23 @@ fn to_str<'a>(s: &'a String) -> &'a str {
     str::from_utf8(s.as_bytes()).unwrap()
 }
 
-#[derive(RustcDecodable, RustcEncodable, Clone, Copy, PartialEq)]
 struct Stats {
-    capacity: usize,
-    rx_frames: u64
+    capacity: AtomicUsize,
+    rx_frames: AtomicUsize
 }
 
-type Status = Vec<(String, Stats)>;
+impl ToJson for Stats {
+    fn to_json(&self) -> Json {
+        let items = vec![("capacity", self.capacity.load(Ordering::Relaxed)),
+                         ("rx_frames", self.rx_frames.load(Ordering::Relaxed))];
+
+        Json::Object(BTreeMap::from_iter(items.iter().map(|&(s, aus)| {
+            (s.to_string(), aus.to_json())
+        })))
+    }
+}
+
+type Status = Vec<Stats>;
 
 const QUEUE_SIZE : usize = 256 * 1024;
 
@@ -86,14 +97,17 @@ fn main() {
         Writer { thread: thread, queue: producer, path: writerPath }
     }).collect();
 
-    let (tx_status, rx_status) = bounded_spsc_queue::make::<Status>(1);
-    let mut status = BTreeMap::from_iter(writers.iter().map(|w| {
-        (w.path.clone(), Stats { capacity: w.queue.free_space(), rx_frames: 0 })
-    }));
+    let mut local_status: Arc<Vec<_>> = Arc::new(writers.iter().map(|w| {
+        Stats { capacity: AtomicUsize::new(QUEUE_SIZE),
+                rx_frames: AtomicUsize::new(0) }
+    }).collect());
+
+    let names: Vec<_> = writers.iter().map(|w| { w.path.clone() }).collect();
 
     let status_fin = fin.clone();
+    let remote_status = local_status.clone();
     let status_thread = thread::spawn(move || {
-        status_main(rx_status, status_fin);
+        status_main(remote_status, names, status_fin);
     });
 
     let mut count = 0;
@@ -107,23 +121,12 @@ fn main() {
 
         let ix: usize = (hash % (writers.len() as u64)) as usize;
         let ref writer = writers[ix];
-
         writer.queue.push(pkt);
 
-        {
-            let mut stats = status.get_mut(&writer.path).unwrap();
-            stats.rx_frames += 1;
-            count += 1;
-        }
-
-        if count & 0xFF == 0 {
-            let i = status.iter().map(|(path, stats)| {
-                (path.clone(), *stats)
-            });
-            let current_status: Vec<(String, Stats)> = i.collect();
-
-            tx_status.push(current_status);
-        }
+        let ref stats = local_status[ix];
+        stats.rx_frames.fetch_add(1, Ordering::Relaxed);
+        stats.capacity.store(writer.queue.free_space(), Ordering::Relaxed);
+        count += 1;
     }
 
     {
@@ -137,25 +140,20 @@ fn main() {
     status_thread.join();
 }
 
-fn status_main(rx: Consumer<Status>, fin: Arc<RwLock<bool>>) {
-    let write_status = |status: Status| {
-        let iter = status.iter().map(|pair| {
-            let (ref path, ref stats) = *pair;
-            (path.clone(), *stats)
+fn status_main(status: Arc<Status>, names: Vec<String>, fin: Arc<RwLock<bool>>) {
+    let write_status = || {
+        let iter = names.iter().zip(status.iter()).map(|pair| {
+            let (ref path, stats) = pair;
+            ((*path).clone(), stats.to_json())
         });
-        let status: BTreeMap<String, Stats> = BTreeMap::from_iter(iter);
+        let status: BTreeMap<String, Json> = BTreeMap::from_iter(iter);
 
         println!("status {}", json::encode(&status).unwrap());
     };
 
     while !*fin.read().unwrap() {
-        match rx.try_pop() {
-            Some(status) => {
-                write_status(status);
-            },
-            None => {
-                thread::sleep_ms(1000);
-            }
-        }
+        write_status();
+        thread::sleep_ms(100);
     }
+    write_status();
 }
