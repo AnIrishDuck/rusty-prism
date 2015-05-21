@@ -1,10 +1,9 @@
 use libc::c_int;
-use std::cmp;
 use std::mem;
 use std::ptr;
 use std::str;
 use std::ffi::CString;
-use std::io::{Read, Result};
+use std::io::Read;
 
 #[repr(C)]
 pub struct timeval {
@@ -21,22 +20,22 @@ pub struct PacketHeader {
 
 pub type PcapCallback = extern fn(*mut u8, *const PacketHeader, *const u8);
 
-// Used for  types that are intentially opaque.
+// Used for libpcap types that are intentially opaque.
 // stackoverflow.com/q/26699631/#comment41993111_26699631
-type pcap_internal_t = *const u8;
+type OpaquePointer = *const u8;
 
 #[link(name = "pcap")]
 extern {
-    fn pcap_datalink(p: pcap_internal_t) -> c_int;
-    fn pcap_snapshot(p: pcap_internal_t) -> c_int;
-    fn pcap_open_dead(linktype: c_int, snaplen: c_int) -> pcap_internal_t;
-    fn pcap_dump_open(p: pcap_internal_t, path: *const i8) -> pcap_internal_t;
-    fn pcap_dump(p: pcap_internal_t,
+    fn pcap_datalink(p: OpaquePointer) -> c_int;
+    fn pcap_snapshot(p: OpaquePointer) -> c_int;
+    fn pcap_open_dead(linktype: c_int, snaplen: c_int) -> OpaquePointer;
+    fn pcap_dump_open(p: OpaquePointer, path: *const i8) -> OpaquePointer;
+    fn pcap_dump(p: OpaquePointer,
                  hdr: *const PacketHeader,
-                 pkt: *const u8) -> pcap_internal_t;
+                 pkt: *const u8) -> OpaquePointer;
 
-    fn pcap_open_offline(path: *const i8, err: *mut u8) -> pcap_internal_t;
-    fn pcap_loop(pcap: pcap_internal_t, count: c_int,
+    fn pcap_open_offline(path: *const i8, err: *mut u8) -> OpaquePointer;
+    fn pcap_loop(pcap: OpaquePointer, count: c_int,
                  cb: PcapCallback,
                  udata: *mut u8) -> c_int;
 }
@@ -112,7 +111,7 @@ impl Iterator for PcapFileReader {
 
     fn next(&mut self) -> Option<Packet> {
         unsafe {
-            let mut data = UserData {
+            let data = UserData {
                 packet: Packet {
                     bytes: [0; 1500],
                     header: PacketHeader {
@@ -127,7 +126,7 @@ impl Iterator for PcapFileReader {
                 filled: false
             };
             let ptr: *mut u8 = mem::transmute(&data);
-            let count = pcap_loop(self.pcap, 1, cb, ptr);
+            pcap_loop(self.pcap, 1, cb, ptr);
             let pkt = data.packet;
             if data.filled { Some(pkt) } else { None }
         }

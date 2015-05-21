@@ -4,13 +4,13 @@ use std::mem;
 const ETH_ALEN : usize  = 6;
 const ETH_P_8021Q : u16 = 0x8100;
 
-type mac_addr = [u8; ETH_ALEN];
+type MacAddr = [u8; ETH_ALEN];
 
 #[repr(C)]
 #[packed]
 struct vlan_ethhdr {
-    h_dest       : mac_addr,
-    h_source     : mac_addr,
+    h_dest       : MacAddr,
+    h_source     : MacAddr,
     h_vlan_proto : u16,
     h_vlan_TCI   : u16,
     h_vlan_encapsulated_proto : u16
@@ -19,8 +19,8 @@ struct vlan_ethhdr {
 #[repr(C)]
 #[packed]
 struct ethhdr {
-    h_dest : mac_addr,
-    h_source : mac_addr,
+    h_dest : MacAddr,
+    h_source : MacAddr,
     h_proto : u16
 }
 
@@ -30,7 +30,7 @@ pub fn read_inner_packet(outer : &[u8]) -> &[u8] {
 
     let proto = util::ntohs(header.h_proto);
 
-    if(proto == ETH_P_8021Q) {
+    if proto == ETH_P_8021Q {
         return &outer[mem::size_of::<vlan_ethhdr>() ..];
     }
     else {

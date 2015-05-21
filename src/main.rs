@@ -11,7 +11,7 @@ use std::iter::FromIterator;
 use std::sync::{Arc, RwLock};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use bounded_spsc_queue::{Producer,Consumer};
+use bounded_spsc_queue::Producer;
 use rustc_serialize::json;
 use rustc_serialize::json::{Json, ToJson};
 
@@ -70,14 +70,13 @@ fn main() {
         create_writer(path.clone(), fin.clone(), &input)
     }).collect();
 
-    let mut local_status: Arc<Vec<_>> = Arc::new(writers.iter().map(|w| {
+    let local_status: Arc<Vec<_>> = Arc::new(writers.iter().map(|w| {
         Stats { capacity: AtomicUsize::new(QUEUE_SIZE),
                 rx_frames: AtomicUsize::new(0) }
     }).collect());
 
     let status = create_status(local_status.clone(), paths, fin.clone());
 
-    let mut count = 0;
     for pkt in input {
         let hash = {
             let inner = ether::read_inner_packet(&pkt.bytes);
@@ -93,7 +92,6 @@ fn main() {
         let ref stats = local_status[ix];
         stats.rx_frames.fetch_add(1, Ordering::Relaxed);
         stats.capacity.store(writer.queue.free_space(), Ordering::Relaxed);
-        count += 1;
     }
 
     {
@@ -102,9 +100,9 @@ fn main() {
     }
 
     for writer in writers {
-        writer.thread.join();
+        writer.thread.join().unwrap();
     }
-    status.join();
+    status.join().unwrap();
 }
 
 fn create_status(status: Arc<Status>, names: Vec<String>,
