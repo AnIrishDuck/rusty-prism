@@ -7,6 +7,8 @@ use std::str;
 use std::hash::{Hash, Hasher, SipHasher};
 use std::thread;
 use std::collections::BTreeMap;
+use std::fs::File;
+use std::io::Write;
 use std::iter::FromIterator;
 use std::sync::{Arc, RwLock};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -60,6 +62,8 @@ struct Writer {
 fn main() {
     let mut args = env::args();
     args.next(); // shift off program name
+
+    let status_path = args.next().unwrap();
     let input = pcap::read(to_str(&args.next().unwrap()));
 
     let fin = Arc::new(RwLock::new(false));
@@ -75,7 +79,8 @@ fn main() {
                 rx_frames: AtomicUsize::new(0) }
     }).collect());
 
-    let status = create_status(local_status.clone(), paths, fin.clone());
+    let status = create_status(status_path, local_status.clone(), paths,
+                               fin.clone());
 
     for pkt in input {
         let hash = {
@@ -105,7 +110,7 @@ fn main() {
     status.join().unwrap();
 }
 
-fn create_status(status: Arc<Status>, names: Vec<String>,
+fn create_status(path: String, status: Arc<Status>, names: Vec<String>,
                  fin: Arc<RwLock<bool>>) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         let write_status = || {
@@ -114,8 +119,10 @@ fn create_status(status: Arc<Status>, names: Vec<String>,
                 ((*path).clone(), stats.to_json())
             });
             let status: BTreeMap<String, Json> = BTreeMap::from_iter(iter);
+            let json = status.to_json();
 
-            println!("status {}", json::encode(&status).unwrap());
+            let mut file = File::create(&path).unwrap();
+            write!(file, "{}\n", &json.pretty()).unwrap();
         };
 
         while !*fin.read().unwrap() {
