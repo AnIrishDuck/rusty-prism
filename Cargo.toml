@@ -4,10 +4,10 @@ version = "0.1.0"
 authors = ["Frank Murphy <fmurphy@arbor.net>"]
 
 [dependencies.rustc-serialize]
-git = "file:///data/rust/rustc-serialize"
+git = "https://github.com/rust-lang/rustc-serialize.git"
 
 [dependencies.libc]
-git = "file:///data/rust/libc"
+git = "https://github.com/rust-lang/libc.git"
 
 [dependencies.bounded-spsc-queue]
-git = "file:///data/rust/bounded-spsc-queue"
+git = "https://github.com/AnIrishDuck/bounded-spsc-queue.git"
