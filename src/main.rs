@@ -14,7 +14,6 @@ use std::sync::{Arc, RwLock};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use bounded_spsc_queue::Producer;
-use rustc_serialize::json;
 use rustc_serialize::json::{Json, ToJson};
 
 mod util;
@@ -59,6 +58,7 @@ struct Writer {
     queue: Producer<Packet>
 }
 
+#[allow(unused_variables)]
 fn main() {
     let mut args = env::args();
     args.next(); // shift off program name

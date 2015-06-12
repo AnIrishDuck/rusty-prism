@@ -16,6 +16,7 @@ struct iphdr {
     daddr: u32
 }
 
+#[allow(dead_code)]
 pub struct V4Packet<'a> {
     header: &'a iphdr,
     payload: &'a [u8]

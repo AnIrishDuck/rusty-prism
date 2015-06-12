@@ -6,6 +6,7 @@ const ETH_P_8021Q : u16 = 0x8100;
 
 type MacAddr = [u8; ETH_ALEN];
 
+#[allow(non_snake_case)]
 #[repr(C)]
 #[packed]
 struct vlan_ethhdr {
