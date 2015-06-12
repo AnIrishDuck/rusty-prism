@@ -1,5 +1,5 @@
 [package]
-name = "json"
+name = "rusty-prism"
 version = "0.1.0"
 authors = ["Frank Murphy <fmurphy@arbor.net>"]
 
