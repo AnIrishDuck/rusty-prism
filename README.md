@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/AnIrishDuck/rusty-prism.svg?branch=master)](https://travis-ci.org/rust-lang-nursery/libc)
+[![Build Status](https://travis-ci.org/AnIrishDuck/rusty-prism.svg?branch=master)](https://travis-ci.org/AnIrishDuck/rusty-prism)
 
 This program was written in an attempt to learn rust and use it "in anger".
 
