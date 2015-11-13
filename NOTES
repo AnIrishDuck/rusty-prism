@@ -1,17 +1,20 @@
-* bundled version of curl or w/e doesn't properly SSL
+Everything below is stream-of-conciousness from developing under a pre-1.0 rust
+in a custom linux environment (arbux):
+
+* bundled version of curl or w/e doesn't properly SSL (probably arbux issue)
 * no ntohs? really?
 * missing / moving things
 * error handling, erm?
 * error handling, wtf (println! while debugging via output generates signal 4)
-* llvm toolchain instead of gnu (no lldb, no libs for codegen)
+* llvm toolchain instead of gnu (no lldb, no libs for codegen on arbux)
 
 * combined pointers?
 /data/many-flow.pcap1.pcap: No such file or directory
 let input = pcap::read("/data/many-flow.pcap");
 let output = pcap::write("1.pcap", input.datalink(), input.snaplen());
 
-* two string types
+* two string types (fmurphy-- RTFM)
 * scoping and other such problems
-* no concurrent map in stdlib
+* no concurrent dictionary in stdlib
 * no impl of Serializable, PartialEq for AtomicUsize
-* confusion between std::fs, std::io::fs etc
+* confusion between std::fs, std::io::fs etc (see missing/moving things)
