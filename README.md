@@ -18,6 +18,12 @@ themselves.
 
 The process also writes stats to a JSON file in the background for monitoring.
 
+## Notes
+
+I was planning on doing an internal presentation on this at some point, hence
+the NOTES file. I also split out some commits (see 85e9 - 9699 for example)
+so I could remember problems I ran into, and how I solved them.
+
 ## TODO
 
 * Lots of cleanup is still needed. For reference, this program was initially
