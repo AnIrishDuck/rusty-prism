@@ -3,11 +3,9 @@ name = "rusty-prism"
 version = "0.1.0"
 authors = ["Frank Murphy <fmurphy@arbor.net>"]
 
-[dependencies.rustc-serialize]
-git = "https://github.com/rust-lang/rustc-serialize.git"
-
-[dependencies.libc]
-git = "https://github.com/rust-lang/libc.git"
+[dependencies]
+libc = "0.2.2"
+rustc-serialize = "0.3.16"
 
 [dependencies.bounded-spsc-queue]
 git = "https://github.com/AnIrishDuck/bounded-spsc-queue.git"
