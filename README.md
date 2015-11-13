@@ -6,8 +6,8 @@ This program was written in an attempt to learn rust and use it "in anger".
 
 I chose a small but significant internal utility (pcap-prism) to replace
 entirely. This program splits a single input pcap into multiple output pcaps.
-It groups flows by the 5-tuple `(src, dst, srcport, dstport)` and outputs those
-flows to individual pcap files.
+It groups flows by the 5-tuple `(src, dst, proto, srcport, dstport)` and
+outputs those flows to individual pcap files.
 
 The existing utility is multithreaded because it commonly outputs to pipes
 instead of files. The other side of these pipes can be heavy processing
