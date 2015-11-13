@@ -7,6 +7,7 @@ addons:
   apt:
     packages:
       - libpcap0.8
+      - libpcap0.8-dev
 matrix:
     allow_failures:
         - rust: nightly
