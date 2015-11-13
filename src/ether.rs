@@ -8,7 +8,7 @@ type MacAddr = [u8; ETH_ALEN];
 
 #[allow(non_snake_case)]
 #[repr(C)]
-#[packed]
+#[repr(packed)]
 struct vlan_ethhdr {
     h_dest       : MacAddr,
     h_source     : MacAddr,
@@ -18,7 +18,7 @@ struct vlan_ethhdr {
 }
 
 #[repr(C)]
-#[packed]
+#[repr(packed)]
 struct ethhdr {
     h_dest : MacAddr,
     h_source : MacAddr,

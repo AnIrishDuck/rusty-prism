@@ -2,7 +2,7 @@ use util;
 use std::mem;
 
 #[repr(C)]
-#[packed]
+#[repr(packed)]
 struct iphdr {
     ihl_version: u8,
     tos: u8,
