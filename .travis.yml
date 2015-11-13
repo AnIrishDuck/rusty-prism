@@ -3,6 +3,9 @@ rust:
     - stable
     - beta
     - nightly
+before_install:
+    - sudo apt-get update -qq
+    - sudo apt-get install -y libpcap0.8
 matrix:
     allow_failures:
         - rust: nightly
