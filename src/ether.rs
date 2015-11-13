@@ -1,3 +1,5 @@
+/// Ethernet parsing routines. This is mostly a direct port of linux/if_ether.h
+
 extern crate num;
 
 use std::mem;
@@ -28,6 +30,7 @@ struct ethhdr {
     h_proto : u16
 }
 
+/// Crack open this ethernet frame to retrieve the inner packet.
 pub fn read_inner_packet(outer : &[u8]) -> &[u8] {
     let header: *const u8 = outer.as_ptr();
     let header: &ethhdr = unsafe { &*(header as *const ethhdr) };

@@ -1,3 +1,6 @@
+/// Wrappers for libpcap. I know they probably exist in third-party form, but I
+/// needed to get some feel for how painful wrapping C is in Rust.
+
 use libc::c_int;
 use std::mem;
 use std::ptr;
@@ -102,6 +105,8 @@ pub fn write(path: &str, datalink: i32, snaplen: i32) -> PcapFileWriter {
     }
 }
 
+/// Nice wrapper for reading PCAP files using the underlying C ugliness under
+/// the hood.
 impl PcapFileReader {
     pub fn snaplen(&self) -> i32 { unsafe { pcap_snapshot(self.pcap) } }
     pub fn datalink(&self) -> i32 { unsafe { pcap_datalink(self.pcap) } }
@@ -134,6 +139,8 @@ impl Iterator for PcapFileReader {
     }
 }
 
+/// Nice wrapper for writing to PCAP files using the underlying C ugliness under
+/// the hood.
 impl PcapFileWriter {
     pub fn write(&self, pkt: &Packet) {
         unsafe {

@@ -1,3 +1,5 @@
+/// IP parsing routines. This is mostly a direct port of linux/ip.h
+
 extern crate num;
 
 use std::mem;
@@ -36,6 +38,9 @@ impl<'a> V4Packet<'a> {
         };
     }
 
+    /// Returns the source address of this IPv4 packet.
     pub fn src(&self) -> u32 { return u32::from_be(self.header.saddr) }
+
+    /// Returns the destination address of this IPv6 packet.
     pub fn dst(&self) -> u32 { return u32::from_be(self.header.daddr) }
 }

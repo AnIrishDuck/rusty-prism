@@ -68,6 +68,7 @@ fn main() {
     split(status_path, input_path, paths);
 }
 
+/// Program entry point. Takes parsed cli arguments and runs the main threads.
 #[allow(unused_variables)]
 pub fn split(status_path: String, input_path: String, paths: Vec<String>) {
     let input = pcap::read(to_str(&input_path));
@@ -114,6 +115,7 @@ pub fn split(status_path: String, input_path: String, paths: Vec<String>) {
     status.join().unwrap();
 }
 
+/// Creates the thread that periodically writes stats to a JSON file.
 fn create_status(path: String, status: Arc<Status>, names: Vec<String>,
                  fin: Arc<RwLock<bool>>) -> thread::JoinHandle<()> {
     thread::spawn(move || {
@@ -137,6 +139,7 @@ fn create_status(path: String, status: Arc<Status>, names: Vec<String>,
     })
 }
 
+/// Creates an individual pcap writer thread.
 fn create_writer(path: String, fin: Arc<RwLock<bool>>,
                  input: &pcap::PcapFileReader) -> Writer {
     let (producer, consumer) = bounded_spsc_queue::make::<Packet>(QUEUE_SIZE);
