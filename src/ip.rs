@@ -1,5 +1,8 @@
-use util;
+extern crate num;
+
 use std::mem;
+
+use self::num::traits::PrimInt;
 
 #[repr(C)]
 #[repr(packed)]
@@ -33,6 +36,6 @@ impl<'a> V4Packet<'a> {
         };
     }
 
-    pub fn src(&self) -> u32 { return util::ntohl(self.header.saddr) }
-    pub fn dst(&self) -> u32 { return util::ntohl(self.header.daddr) }
+    pub fn src(&self) -> u32 { return u32::from_be(self.header.saddr) }
+    pub fn dst(&self) -> u32 { return u32::from_be(self.header.daddr) }
 }

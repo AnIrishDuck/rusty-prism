@@ -1,5 +1,8 @@
-use util;
+extern crate num;
+
 use std::mem;
+
+use self::num::traits::PrimInt;
 
 const ETH_ALEN : usize  = 6;
 const ETH_P_8021Q : u16 = 0x8100;
@@ -29,7 +32,7 @@ pub fn read_inner_packet(outer : &[u8]) -> &[u8] {
     let header: *const u8 = outer.as_ptr();
     let header: &ethhdr = unsafe { &*(header as *const ethhdr) };
 
-    let proto = util::ntohs(header.h_proto);
+    let proto = u16::from_be(header.h_proto);
 
     if proto == ETH_P_8021Q {
         return &outer[mem::size_of::<vlan_ethhdr>() ..];

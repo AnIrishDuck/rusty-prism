@@ -16,7 +16,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use bounded_spsc_queue::Producer;
 use rustc_serialize::json::{Json, ToJson};
 
-mod util;
 mod pcap;
 mod ether;
 mod ip;
