@@ -57,17 +57,22 @@ struct Writer {
     queue: Producer<Packet>
 }
 
-#[allow(unused_variables)]
 fn main() {
     let mut args = env::args();
     args.next(); // shift off program name
 
     let status_path = args.next().unwrap();
-    let input = pcap::read(to_str(&args.next().unwrap()));
+    let input_path = args.next().unwrap();
+    let paths: Vec<_> = args.collect();
+
+    split(status_path, input_path, paths);
+}
+
+#[allow(unused_variables)]
+pub fn split(status_path: String, input_path: String, paths: Vec<String>) {
+    let input = pcap::read(to_str(&input_path));
 
     let fin = Arc::new(RwLock::new(false));
-
-    let paths: Vec<_> = args.collect();
 
     let writers: Vec<_> = paths.iter().map(|path| {
         create_writer(path.clone(), fin.clone(), &input)
@@ -157,7 +162,66 @@ fn create_writer(path: String, fin: Arc<RwLock<bool>>,
 
         // flush backlog
         while try_write() { }
+
+        f.close();
     });
 
     Writer { thread: thread, queue: producer }
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate tempdir;
+
+    use super::*;
+    use self::tempdir::TempDir;
+
+    use pcap;
+
+    fn pcap_count(path: &str) -> usize {
+        let input = pcap::read(path);
+        input.count()
+    }
+
+    #[test]
+    fn keeps_single_flow_together() {
+        let tmp = TempDir::new("rusty-prism").unwrap();
+        let tmp_path = tmp.path();
+
+        let original = "data/one-flow.pcap";
+        let one_path = tmp_path.join("1.pcap");
+        let two_path = tmp_path.join("2.pcap");
+
+        let one = one_path.to_str().unwrap();
+        let two = two_path.to_str().unwrap();
+
+        split("stats.json".to_string(),
+              original.to_string(),
+              vec![one.to_string(), two.to_string()]);
+
+        assert!(pcap_count(one) == 0 || pcap_count(two) == 0);
+        assert_eq!(pcap_count(one) + pcap_count(two), pcap_count(original));
+    }
+
+    #[test]
+    fn splits_many_flows() {
+        let tmp = TempDir::new("rusty-prism").unwrap();
+        let tmp_path = tmp.path();
+
+        let original = "data/many-flows.pcap";
+        let one_path = tmp_path.join("1.pcap");
+        let two_path = tmp_path.join("2.pcap");
+
+        let one = one_path.to_str().unwrap();
+        let two = two_path.to_str().unwrap();
+
+
+        split("stats.json".to_string(),
+              original.to_string(),
+              vec![one.to_string(), two.to_string()]);
+
+        assert!(pcap_count(one) != 0);
+        assert!(pcap_count(two) != 0);
+        assert_eq!(pcap_count(one) + pcap_count(two), pcap_count(original));
+    }
 }

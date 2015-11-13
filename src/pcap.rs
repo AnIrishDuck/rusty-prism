@@ -33,6 +33,7 @@ extern {
     fn pcap_dump(p: OpaquePointer,
                  hdr: *const PacketHeader,
                  pkt: *const u8) -> OpaquePointer;
+    fn pcap_dump_close(p: OpaquePointer);
 
     fn pcap_open_offline(path: *const i8, err: *mut u8) -> OpaquePointer;
     fn pcap_loop(pcap: OpaquePointer, count: c_int,
@@ -137,6 +138,12 @@ impl PcapFileWriter {
     pub fn write(&self, pkt: &Packet) {
         unsafe {
             pcap_dump(self.pcap, &pkt.header, pkt.bytes.as_ptr());
+        }
+    }
+
+    pub fn close(&self) {
+        unsafe {
+            pcap_dump_close(self.pcap);
         }
     }
 }
